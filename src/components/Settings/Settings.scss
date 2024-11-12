@@ -1,0 +1,110 @@
+.settings-container {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10000;
+
+  .settings-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    color: #666;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.05);
+      color: #333;
+    }
+  }
+
+  .settings-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 8px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 8px;
+    min-width: 200px;
+
+    .settings-item {
+      padding: 8px;
+      
+      label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+
+      .edit-instructions-button {
+        width: 100%;
+        padding: 8px;
+        text-align: left;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: inherit;
+        font-size: inherit;
+
+        &:hover {
+          background-color: rgba(0, 0, 0, 0.05);
+          border-radius: 4px;
+        }
+      }
+    }
+  }
+}
+
+.instructions-editor {
+  padding: 24px;
+  width: 800px;
+  max-width: 90vw;
+
+  h2 {
+    margin-bottom: 16px;
+  }
+
+  textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 14px;
+    resize: vertical;
+  }
+
+  .modal-actions {
+    margin-top: 16px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+
+    button {
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      
+      &:first-child {
+        background: none;
+        border: 1px solid #ddd;
+      }
+      
+      &:last-child {
+        background: #101010;
+        color: white;
+        border: none;
+        
+        &:hover {
+          background: #333;
+        }
+      }
+    }
+  }
+} 

@@ -19,7 +19,6 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { RealtimeClient } from '@openai/realtime-api-beta';
 import { ItemType } from '@openai/realtime-api-beta/dist/lib/client.js';
 import { WavRecorder, WavStreamPlayer } from '../lib/wavtools/index.js';
-import { instructions } from '../utils/conversation_config.js';
 import { WavRenderer } from '../utils/wav_renderer';
 
 import { X, Edit, Zap, ArrowUp, ArrowDown } from 'react-feather';
@@ -29,6 +28,10 @@ import { Map } from '../components/Map';
 
 import './ConsolePage.scss';
 import { isJsxOpeningLikeElement } from 'typescript';
+import React from 'react';
+import { Header } from '../components/Header/Header';
+import { Controls } from '../components/Controls/Controls';
+import { Settings } from '../components/Settings/Settings';
 
 
 /**
@@ -71,7 +74,7 @@ interface RealtimeEvent {
  * Type for all event logs
  */
 // Define interface to include optional `calculatedDistance`
-interface DavitaLocation {
+interface DialysisCenter {
   name: string;
   lat: number;
   lng: number;
@@ -84,10 +87,10 @@ interface DavitaLocation {
 }
 
 
-// Define DAVITA_LOCATIONS array with type DavitaLocation
-const DAVITA_LOCATIONS: DavitaLocation[] = [
+// Define DIALYSIS_CENTERS array with type DialysisCenter
+const DIALYSIS_CENTERS: DialysisCenter[] = [
   {
-    name: "DaVita Denver Dialysis Center",
+    name: "Denver Dialysis Center",
     lat: 39.7599,
     lng: -104.9729,
     phone: "1-800-424-6589",
@@ -97,7 +100,7 @@ const DAVITA_LOCATIONS: DavitaLocation[] = [
     distance: 1.62,
   },
   {
-    name: "DaVita Mile High Home At Home",
+    name: "Mile High Home Dialysis",
     lat: 39.7468,
     lng: -105.0771,
     phone: "1-800-424-6589",
@@ -107,7 +110,7 @@ const DAVITA_LOCATIONS: DavitaLocation[] = [
     distance: 4.34,
   },
   {
-    name: "DaVita Lakewood Dialysis Center",
+    name: "Lakewood Dialysis Center",
     lat: 39.7468,
     lng: -105.0771,
     phone: "1-800-424-6589",
@@ -139,7 +142,6 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 
   return distanceInMiles;
 }
-
 
 export function ConsolePage() {
   /**
@@ -213,6 +215,24 @@ export function ConsolePage() {
   const [marker, setMarker] = useState<Coordinates | null>(null);
 
   /**
+   * Add these new state declarations
+   */
+  const [visibilitySettings, setVisibilitySettings] = useState({
+    showDialysisCenter: false,
+    showMemory: false,
+  });
+
+  /**
+   * Add this new handler function
+   */
+  const handleSettingChange = useCallback((setting: string, value: boolean) => {
+    setVisibilitySettings(prev => ({
+      ...prev,
+      [setting]: value
+    }));
+  }, []);
+
+  /**
    * Utility for formatting the timing of logs
    */
   const formatTime = useCallback((timestamp: string) => {
@@ -245,9 +265,30 @@ export function ConsolePage() {
     }
   }, []);
 
+  // Add state for instructions with the default value
+  const [instructions, setInstructions] = useState<string>(`System settings:
+Tool use: enabled.
+
+Introduction to the user:
+Hello, this is Contoso Pharma's AI support agent. `);
+
+  // Add handler for instructions change
+  const handleInstructionsChange = useCallback((newInstructions: string) => {
+    setInstructions(newInstructions);
+    // Only update session if already connected
+    if (clientRef.current?.isConnected()) {
+      clientRef.current.updateSession({ 
+        instructions: newInstructions,
+        voice: 'alloy',
+        input_audio_transcription: { model: 'whisper-1' }
+      });
+      console.log('Instructions updated:', newInstructions); // Add logging
+    }
+  }, []);
+
   /**
    * Connect to conversation:
-   * WavRecorder taks speech input, WavStreamPlayer output, client is API client
+   * WavRecorder takes speech input, WavStreamPlayer output, client is API client
    */
   const connectConversation = useCallback(async () => {
     const client = clientRef.current;
@@ -266,20 +307,27 @@ export function ConsolePage() {
     // Connect to audio output
     await wavStreamPlayer.connect();
 
-    // Connect to realtime API
+    // Connect to realtime API and set instructions
     await client.connect();
+    
+    // Add this explicit session update when connecting
+    await client.updateSession({ 
+      instructions: instructions,  // Use current instructions from state
+      voice: 'alloy',
+      input_audio_transcription: { model: 'whisper-1' }
+    });
+
     client.sendUserMessageContent([
       {
         type: `input_text`,
         text: `Hello!`,
-        // text: `For testing purposes, I want you to list ten car brands. Number each item, e.g. "one (or whatever number you are one): the item name".`
       },
     ]);
 
     if (client.getTurnDetectionType() === 'server_vad') {
       await wavRecorder.record((data) => client.appendInputAudio(data.mono));
     }
-  }, []);
+  }, [instructions]); // Add instructions as a dependency
 
   /**
    * Disconnect and reset conversation state
@@ -456,18 +504,13 @@ export function ConsolePage() {
 
   /**
    * Core RealtimeClient and audio capture setup
-   * Set all of our instructions, tools, events and more
    */
   useEffect(() => {
-    // Get refs
-    const wavStreamPlayer = wavStreamPlayerRef.current;
     const client = clientRef.current;
+    const wavStreamPlayer = wavStreamPlayerRef.current;
 
-    // Set instructions
-    client.updateSession({ instructions: instructions });
-    // Set transcription, otherwise we don't get user transcriptions back
-    client.updateSession({ input_audio_transcription: { model: 'whisper-1' } });
-
+    // Remove the initial session update from here since we'll do it in connectConversation
+    
     // Add tools
     client.addTool(
       {
@@ -501,7 +544,7 @@ export function ConsolePage() {
     client.addTool(
       {
         name: 'get_nearest_dialysis_center',
-        description: 'Retrieves the nearest DaVita dialysis center for given coordinates. Just tell the user the name of the center, its phone number, and how far away it is.',
+        description: 'Retrieves the nearest dialysis center for given coordinates. Just tell the user the name of the center, its phone number, and how far away it is.',
         parameters: {
           type: 'object',
           properties: {
@@ -517,7 +560,7 @@ export function ConsolePage() {
         setCoords({ lat, lng, location });
         
         // Always set marker to Denver Dialysis Center
-        const denverCenter = DAVITA_LOCATIONS[0];
+        const denverCenter = DIALYSIS_CENTERS[0];
         setMarker({
           lat: denverCenter.lat,
           lng: denverCenter.lng,
@@ -619,31 +662,46 @@ export function ConsolePage() {
       // cleanup; resets to defaults
       client.reset();
     };
-  }, []);
+  }, []); // Keep empty dependency array for initial setup
+
+  // Helper function to determine content-right classes
+  const getRightPanelClasses = useCallback(() => {
+    const classes = ['content-right'];
+    
+    if (!visibilitySettings.showDialysisCenter && !visibilitySettings.showMemory) {
+      classes.push('hide-all');
+    } else if (!visibilitySettings.showDialysisCenter) {
+      classes.push('hide-dialysis', 'single-component');
+    } else if (!visibilitySettings.showMemory) {
+      classes.push('hide-memory', 'single-component');
+    }
+    
+    return classes.join(' ');
+  }, [visibilitySettings]);
+
+  // Helper function to determine if right panel is completely hidden
+  const isRightPanelHidden = useCallback(() => {
+    return !visibilitySettings.showDialysisCenter && !visibilitySettings.showMemory;
+  }, [visibilitySettings]);
 
   /**
    * Render the application
    */
   return (
     <div data-component="ConsolePage">
-      <div className="content-top">
-        <div className="content-title">
-          <img src="https://sonehealthcare.com/wp-content/uploads/2021/08/davita-logo-png-transparent.png" />
-          <span>DaVita Realtime Call Center Agent</span>
-        </div>
-        <div className="content-api-key">
-          {!LOCAL_RELAY_SERVER_URL && (
-            <Button
-              icon={Edit}
-              iconPosition="end"
-              buttonStyle="flush"
-              label={`api key: ${apiKey.slice(0, 3)}...`}
-              onClick={() => resetAPIKey()}
-            />
-          )}
-        </div>
-      </div>
-      <div className="content-main">
+      <Header 
+        apiKey={apiKey}
+        isLocalServer={!!LOCAL_RELAY_SERVER_URL}
+        onResetApiKey={resetAPIKey}
+        localRelayServerUrl={LOCAL_RELAY_SERVER_URL}
+      />
+      <Settings 
+        visibilitySettings={visibilitySettings}
+        onSettingChange={handleSettingChange}
+        instructions={instructions}
+        onInstructionsChange={handleInstructionsChange}
+      />
+      <div className={`content-main ${isRightPanelHidden() ? 'hide-right-panel' : ''}`}>
         <div className="content-logs">
           <div className="content-block events">
             <div className="visualization">
@@ -783,68 +841,54 @@ export function ConsolePage() {
               })}
             </div>
           </div>
-          <div className="content-actions">
-            <Toggle
-              defaultValue={false}
-              labels={['manual', 'vad']}
-              values={['none', 'server_vad']}
-              onChange={(_, value) => changeTurnEndType(value)}
-            />
-            <div className="spacer" />
-            {isConnected && canPushToTalk && (
-              <Button
-                label={isRecording ? 'release to send' : 'push to talk'}
-                buttonStyle={isRecording ? 'alert' : 'regular'}
-                disabled={!isConnected || !canPushToTalk}
-                onMouseDown={startRecording}
-                onMouseUp={stopRecording}
-              />
-            )}
-            <div className="spacer" />
-            <Button
-              label={isConnected ? 'disconnect' : 'connect'}
-              iconPosition={isConnected ? 'end' : 'start'}
-              icon={isConnected ? X : Zap}
-              buttonStyle={isConnected ? 'regular' : 'action'}
-              onClick={
-                isConnected ? disconnectConversation : connectConversation
-              }
-            />
-          </div>
+          <Controls
+            isConnected={isConnected}
+            canPushToTalk={canPushToTalk}
+            isRecording={isRecording}
+            onTurnEndTypeChange={(_, value) => changeTurnEndType(value)}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
+            onConnect={connectConversation}
+            onDisconnect={disconnectConversation}
+          />
         </div>
-        <div className="content-right">
-          <div className="content-block map">
-            <div className="content-block-title">get_dialysis_center()</div>
-            <div className="content-block-title bottom">
-              {marker?.location || 'not yet retrieved'}
-              {!!marker?.phone && (
-                <>
-                  <br />
-                  📞 {marker.phone}
-                </>
-              )}
-              {!!marker?.fax && (
-                <>
-                  <br />
-                  📠 {marker.fax}
-                </>
-              )}
+        <div className={getRightPanelClasses()}>
+          {visibilitySettings.showDialysisCenter && (
+            <div className="content-block map">
+              <div className="content-block-title">get_dialysis_center()</div>
+              <div className="content-block-title bottom">
+                {marker?.location || 'not yet retrieved'}
+                {!!marker?.phone && (
+                  <>
+                    <br />
+                    📞 {marker.phone}
+                  </>
+                )}
+                {!!marker?.fax && (
+                  <>
+                    <br />
+                    📠 {marker.fax}
+                  </>
+                )}
+              </div>
+              <div className="content-block-body full">
+                {coords && (
+                  <Map
+                    center={[coords.lat, coords.lng]}
+                    location={coords.location}
+                  />
+                )}
+              </div>
             </div>
-            <div className="content-block-body full">
-              {coords && (
-                <Map
-                  center={[coords.lat, coords.lng]}
-                  location={coords.location}
-                />
-              )}
+          )}
+          {visibilitySettings.showMemory && (
+            <div className="content-block kv">
+              <div className="content-block-title">set_memory()</div>
+              <div className="content-block-body content-kv">
+                {JSON.stringify(memoryKv, null, 2)}
+              </div>
             </div>
-          </div>
-          <div className="content-block kv">
-            <div className="content-block-title">set_memory()</div>
-            <div className="content-block-body content-kv">
-              {JSON.stringify(memoryKv, null, 2)}
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

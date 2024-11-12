@@ -6,3 +6,4 @@
 2. Add the required environment variables to a `.env` file.
 3. Start the development server by running `npm run dev`.
 
+## Deploying to Azure

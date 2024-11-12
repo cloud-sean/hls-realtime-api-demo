@@ -1,0 +1,11 @@
+.kv {
+  height: 250px;
+  max-height: 250px;
+  white-space: pre;
+  background-color: #ececf1;
+  
+  .content-block-body {
+    padding: 16px;
+    margin-top: 56px;
+  }
+}
